@@ -59,8 +59,13 @@ const state = {
   items: loadData(),
   selected: null
 };
-
 const map = document.getElementById('map');
+const world = document.getElementById('world');
+const alleys = document.getElementById('alleys');
+const zoom = document.getElementById('zoom');
+const zoomVal = document.getElementById('zoomVal');
+const recenterBtn = document.getElementById('recenterBtn');
+const canvasWrap = document.getElementById('canvasWrap');
 const search = document.getElementById('search');
 const suggestions = document.getElementById('suggestions');
 const newBtn = document.getElementById('newBtn');
@@ -75,6 +80,191 @@ const editForm = document.getElementById('editForm');
 const cancelEdit = document.getElementById('cancelEdit');
 const countEl = document.getElementById('count');
 
+
+// --- Zoom (slider) ---
+// We resize #world in CSS pixels so the scroll container can pan/zoom properly.
+const ZOOM_KEY = 'virtual-cemetery-zoom';
+function loadZoom(){
+  const raw = localStorage.getItem(ZOOM_KEY);
+  const z = raw ? Number(raw) : NaN;
+  if(Number.isFinite(z) && z>=0.5 && z<=3) return z;
+  // default: slightly zoomed on mobile for readability
+  return window.matchMedia('(max-width: 640px)').matches ? 1.35 : 1.0;
+}
+function saveZoom(z){ localStorage.setItem(ZOOM_KEY, String(z)); }
+
+state.zoom = loadZoom();
+state.layoutW = 1000;
+state.layoutH = 600;
+
+function applyZoom(){
+  if(!world) return;
+  const z = state.zoom || 1;
+  world.style.width = `${state.layoutW * z}px`;
+  world.style.height = `${state.layoutH * z}px`;
+  if(zoom) zoom.value = String(Math.round(z*100));
+  if(zoomVal) zoomVal.textContent = `${Math.round(z*100)}%`;
+}
+
+if(zoom){
+  // initialize UI
+  zoom.value = String(Math.round(state.zoom*100));
+  if(zoomVal) zoomVal.textContent = `${Math.round(state.zoom*100)}%`;
+
+  zoom.addEventListener('input', ()=>{
+    state.zoom = Number(zoom.value)/100;
+    saveZoom(state.zoom);
+
+
+function recenterView(){
+  if(!canvasWrap) return;
+  // If a tomb is selected, center it; otherwise go to the start (top-left)
+  const selId = state.selected?.id;
+  const node = selId ? map.querySelector(`[data-id="${selId}"]`) : null;
+  if(!node){
+    canvasWrap.scrollTo({top:0,left:0,behavior:'smooth'});
+    return;
+  }
+  const cwRect = canvasWrap.getBoundingClientRect();
+  const elRect = node.getBoundingClientRect();
+  const dx = (elRect.left + elRect.width/2) - (cwRect.left + cwRect.width/2);
+  const dy = (elRect.top + elRect.height/2) - (cwRect.top + cwRect.height/2);
+  canvasWrap.scrollTo({
+    left: canvasWrap.scrollLeft + dx,
+    top: canvasWrap.scrollTop + dy,
+    behavior: 'smooth'
+  });
+}
+
+
+// --- Highlights (hover / selected / search-hover) ---
+let hoveredId = null;
+let searchHoverId = null;
+
+function stoneOf(id){
+  const node = map.querySelector(`[data-id="${id}"]`);
+  return node ? node.querySelector('.stone') : null;
+}
+function clearAllStoneHighlights(){
+  map.querySelectorAll('.stone.search-highlight').forEach(s => s.classList.remove('search-highlight'));
+}
+function refreshHighlights(){
+  clearAllStoneHighlights();
+  const ids = [state.selected?.id, hoveredId, searchHoverId].filter(Boolean);
+  ids.forEach(id=>{
+    const stone = stoneOf(id);
+    if(stone){
+      stone.classList.add('search-highlight');
+      const node = map.querySelector(`[data-id="${id}"]`);
+      if(node) map.appendChild(node);
+    }
+  });
+}
+function setHovered(id){
+  hoveredId = id;
+  refreshHighlights();
+}
+function setSearchHover(id){
+  searchHoverId = id;
+  refreshHighlights();
+}
+function clearSelection(){
+  state.selected = null;
+  hoveredId = null;
+  searchHoverId = null;
+  refreshHighlights();
+}
+
+// --- Recenter button (target selected tomb, else top-left) ---
+function recenter(){
+  const selId = state.selected?.id;
+  if(selId){
+    const node = map.querySelector(`[data-id="${selId}"]`);
+    if(node && canvasWrap && world){
+      try{
+        const box = node.getBBox();
+        const cx = box.x + box.width/2;
+        const cy = box.y + box.height/2;
+
+        const vb = map.getAttribute('viewBox').split(' ').map(Number);
+        const vbW = vb[2], vbH = vb[3];
+
+        const z = state.zoom || 1;
+        // world is sized in pixels as layoutW/layoutH times zoom
+        const worldW = state.layoutW * z;
+        const worldH = state.layoutH * z;
+
+        const px = (cx / vbW) * worldW;
+        const py = (cy / vbH) * worldH;
+
+        canvasWrap.scrollTo({
+          left: Math.max(0, px - canvasWrap.clientWidth/2),
+          top:  Math.max(0, py - canvasWrap.clientHeight/2),
+          behavior: 'smooth'
+        });
+        return;
+      }catch(e){}
+    }
+  }
+  canvasWrap?.scrollTo({left:0, top:0, behavior:'smooth'});
+}
+
+recenterBtn?.addEventListener('click', recenter);
+recenterBtn?.addEventListener('click', ()=>{
+  // Close search dropdown if open (optional)
+  suggestions.style.display = 'none';
+  recenterView();
+});
+
+    applyZoom();
+  });
+}
+
+
+const highlightModes = new Set(['selected','hover','search']);
+
+function getTombNode(id){
+  return map.querySelector(`[data-id="${id}"]`);
+}
+
+// Unified highlight system: a tomb can be highlighted for 3 independent reasons:
+// - selected: clicked tomb (persistent)
+// - hover: mouse over a tomb
+// - search: hover over a search suggestion
+function setHighlight(id, mode, on){
+  if(!highlightModes.has(mode)) return;
+  const node = getTombNode(id);
+  if(!node) return;
+
+  if(on) node.dataset[mode] = '1';
+  else delete node.dataset[mode];
+
+  const stone = node.querySelector('.stone');
+  const anyOn = node.dataset.selected || node.dataset.hover || node.dataset.search;
+
+  if(anyOn){
+    stone?.classList.add('search-highlight');
+    // bring group forward so highlight stays visible
+    map.appendChild(node);
+  }else{
+    stone?.classList.remove('search-highlight');
+  }
+}
+
+function clearSelection(reason=''){
+  if(state.selected?.id){
+    setHighlight(state.selected.id, 'selected', false);
+  }
+  state.selected = null;
+  // Close panels/modals if open
+  if(panel){
+    panel.style.display = 'none';
+    panel.setAttribute('aria-hidden','true');
+  }
+  closeModalSmall?.();
+}
+
+
 // detect admin flag in URL (?admin)
 const isAdmin = location.search.includes('admin');
 
@@ -85,32 +275,33 @@ if(deleteBtn) deleteBtn.style.display = isAdmin ? '' : 'none';
 window.addEventListener('resize', render);
 
 // Build multiple gentle S-shaped paths stacked vertically to spread many tombs
-function buildPaths(w=1000,h=600, rows=1){
+function buildPaths(w=1000,h=600, rows=1, rowGap=120, marginY=40){
+  // We intentionally ignore the provided h and compute a taller virtual height
+  // so the cemetery can scroll vertically when there are many rows.
   const paths = [];
-  const marginY = 8; // much smaller margin so rows sit closer top/bottom
-  const usableH = h - marginY*2;
+  const totalH = marginY*2 + rows*rowGap;
+
   for(let r=0;r<rows;r++){
-    const rowProgress = rows === 1 ? 0.5 : r/(rows-1);
-    // reduce wobble amplitude so rows are flatter and closer
-    const wobble = Math.sin(rowProgress * Math.PI * 2) * 3;
-    const baseY = marginY + rowProgress * usableH;
+    const baseY = marginY + r*rowGap + rowGap/2;
+    const wobble = Math.sin((r/Math.max(1, rows-1)) * Math.PI * 2) * 2;
+
     const rowTop = baseY + wobble;
-    // smaller horizontal offset
+
+    // subtle horizontal offsets so rows don't look perfectly identical
     const hOffset = (r - (rows-1)/2) * 4;
-    // greatly reduced vertical staggering so rows are much nearer each other
-    const verticalShift = (r - (rows-1)/2) * 2;
-    const amp = (1 + (r - (rows-1)/2) * 0.03) * 1;
+
+    const amp = 1;
     const points = [
-      [80 + hOffset, rowTop + verticalShift + 20 * amp + (r%2? -2:2)],
-      [200 + hOffset*0.8, rowTop + verticalShift - 6 * amp + (r%3? 2:-2)],
-      [400 + hOffset*0.4, rowTop + verticalShift + 6 * amp + (r%2? 1:-1)],
-      [600 + hOffset*0.2, rowTop + verticalShift - 4 * amp + (r%4? -2:2)],
-      [820 - hOffset*0.2, rowTop + verticalShift + 5 * amp + (r%3? 1:-1)],
-      [940 - hOffset, rowTop + verticalShift - 8 * amp + (r%2? 2:-2)]
+      [80 + hOffset, rowTop + 20 * amp + (r%2? -2:2)],
+      [200 + hOffset*0.8, rowTop - 6 * amp + (r%3? 2:-2)],
+      [400 + hOffset*0.4, rowTop + 6 * amp + (r%2? 1:-1)],
+      [600 + hOffset*0.2, rowTop - 4 * amp + (r%4? -2:2)],
+      [820 - hOffset*0.2, rowTop + 5 * amp + (r%3? 1:-1)],
+      [940 - hOffset, rowTop - 8 * amp + (r%2? 2:-2)]
     ];
     paths.push(points);
   }
-  return paths;
+  return { paths, height: totalH };
 }
 
 function pathToD(points){
@@ -160,12 +351,27 @@ function catmullRom(t,v0,v1,v2,v3){
   return 0.5*( (2*v1) + (-v0+v2)*t + (2*v0-5*v1+4*v2-v3)*t2 + (-v0+3*v1-3*v2+v3)*t3 );
 }
 
+function renderAlleys(h, rows, rowGap=120, marginY=40){
+  if(!alleys) return;
+  alleys.innerHTML = '';
+
+  for(let r=0;r<rows;r++){
+    const baseY = marginY + r*rowGap + rowGap/2;
+    const wobble = Math.sin((r/Math.max(1, rows-1)) * Math.PI * 2) * 2;
+    const y = baseY + wobble;
+
+    const hr = document.createElement('hr');
+    hr.style.top = `${(y / h) * 100}%`;
+    alleys.appendChild(hr);
+  }
+}
 function render(){
   // Clear
   while(map.firstChild) map.removeChild(map.firstChild);
 
   const vb = map.getAttribute('viewBox').split(' ').map(Number);
-  const w = vb[2], h = vb[3];
+  const w = vb[2];
+  let h = vb[3];
 
   // ensure SVG has its own styles so external CSS doesn't need to apply
   const existingStyle = map.querySelector('style[data-inline-svg]');
@@ -189,10 +395,26 @@ function render(){
   // update tomb count display
   if(countEl) countEl.textContent = `${state.items.length} ${state.items.length>1 ? 'tombes' : 'tombe'}`;
 
-  // determine number of path rows based on item count (aim ~10-18 tombs per path)
+// determine number of path rows based on item count (aim ~10-18 tombs per path)
   const perPath = 15;
-  const rows = Math.min(6, Math.max(1, Math.ceil(state.items.length / perPath)));
-  const paths = buildPaths(w,h,rows);
+  const rows = Math.max(1, Math.ceil(state.items.length / perPath));
+
+  // tighter spacing between alleys:
+  const rowGap = 115;   // distance between alleys (in viewBox units)
+  const marginY = 40;   // top/bottom padding (in viewBox units)
+
+  const layout = buildPaths(w, h, rows, rowGap, marginY);
+  h = layout.height;
+
+  // Update the SVG viewBox so we can scroll vertically to reach all rows
+  map.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+  state.layoutW = w;
+  state.layoutH = h;
+  applyZoom();
+
+  renderAlleys(h, rows, rowGap, marginY);
+  const paths = layout.paths;
 
   // Draw each path and place a portion of tombs on it
   let startIdx = 0;
@@ -202,19 +424,19 @@ function render(){
     const slice = state.items.slice(startIdx, startIdx + take);
     startIdx += take;
 
-    const pathD = pathToD(points);
-    const pathEl = el('path',{d: pathD, class:'pathLine'});
-    map.appendChild(pathEl);
-
     const placed = placeTombsOnPath(slice, points, w);
+    const edgeOffset = 16; // distance from the alley line (viewBox units)
     placed.forEach((it, localIdx) => {
       const idx = state.items.findIndex(x=>x.id===it.id);
 
       // Instead of translating the whole group, position each SVG primitive with absolute coords
       const g = el('g',{class:'tomb', 'data-id': it.id, 'data-idx': idx});
       // stone and plate coordinates relative to centered tomb width (40)
+      const side = (localIdx % 2 === 0) ? -1 : 1; // alternate top/bottom edge
+      const yOnEdge = it.y + side * edgeOffset;
+
       const baseX = Math.round(it.x - 20);
-      const baseY = Math.round(it.y - 40);
+      const baseY = Math.round(yOnEdge - 40);
 
       const stone = el('rect',{x: baseX, y: baseY + 18, width:40, height:36, rx:6, class:'stone'});
       const plate = el('rect',{x: baseX + 6, y: baseY + 2, width:28, height:28, rx:4, class:'plate'});
@@ -234,6 +456,7 @@ function render(){
 
       // Hover: move the primitive y positions up/down instead of changing group transform
       g.addEventListener('mouseenter', ()=>{
+        setHighlight(it.id, 'hover', true);
         const bx = Number(g.getAttribute('data-base-x') || 0);
         const by = Number(g.getAttribute('data-base-y') || 0);
         const up = -6;
@@ -243,6 +466,7 @@ function render(){
         like.setAttribute('y', String(by + 56 + up));
       });
       g.addEventListener('mouseleave', ()=>{
+        setHighlight(it.id, 'hover', false);
         const bx = Number(g.getAttribute('data-base-x') || 0);
         const by = Number(g.getAttribute('data-base-y') || 0);
         stone.setAttribute('y', String(by + 18));
@@ -251,7 +475,9 @@ function render(){
         like.setAttribute('y', String(by + 56));
       });
 
-      g.addEventListener('click',(e)=>{ selectItem(it.id, true) });
+      g.addEventListener('mouseenter', ()=>{ setHovered(it.id); });
+      g.addEventListener('mouseleave', ()=>{ if(hoveredId===it.id) setHovered(null); });
+      g.addEventListener('click',(e)=>{ selectItem(it.id, true); refreshHighlights(); });
       map.appendChild(g);
     });
   });
@@ -269,15 +495,17 @@ function selectItem(id, focus=false){
   if(!it) return;
   // remove highlight from previous selection
   if(state.selected && state.selected.id && state.selected.id !== id){
-    highlightItem(state.selected.id, false);
+    setHighlight(state.selected.id, 'selected', false);
   }
 
   state.selected = it;
   showDetail(it);
+  refreshHighlights();
+  clearSearchHighlights();
   // Highlight the tomb (persist while selected)
   const node = map.querySelector(`[data-id="${id}"]`);
   if(node){
-    highlightItem(id, true);
+    setHighlight(id, 'selected', true);
     // on small screens, scroll viewport to center of tomb by adjusting viewBox
     if(window.innerWidth <= 640){
       // make a modal instead of side panel
@@ -304,7 +532,13 @@ likeBtn.addEventListener('click', ()=>{
   if(!state.selected) return;
   state.selected.likes = (state.selected.likes||0)+1;
   likesCount.textContent = state.selected.likes;
+
+  const node = map.querySelector(`[data-id="${state.selected.id}"]`);
+  const t = node?.querySelector('.likes-text');
+  if(t) t.textContent = `❤ ${state.selected.likes}`;
+
   saveAndRefresh();
+  refreshHighlights();
 });
 
 editBtn.addEventListener('click', ()=>{
@@ -318,7 +552,7 @@ deleteBtn.addEventListener('click', ()=>{
   if(!state.selected) return;
   if(!confirm('Supprimer cette tombe ?')) return;
   // remove highlight of the to-be-deleted item
-  highlightItem(state.selected.id, false);
+  setHighlight(state.selected.id, 'selected', false);
   state.items = state.items.filter(x=>x.id!==state.selected.id);
   state.selected = null;
   saveAndRefresh();
@@ -349,7 +583,7 @@ closePanel.addEventListener('click', ()=>{
   panel.style.display = 'none';
   panel.setAttribute('aria-hidden','true');
   // remove persistent highlight when closing panel
-  if(state.selected && state.selected.id) highlightItem(state.selected.id, false);
+  if(state.selected && state.selected.id) setHighlight(state.selected.id, 'selected', false);
   // on small close modal
   closeModalSmall();
 });
@@ -357,6 +591,11 @@ closePanel.addEventListener('click', ()=>{
 // Show a suggestion list when user types; allow selecting any match
 search.addEventListener('input', (e)=>{
   const q = e.target.value.trim().toLowerCase();
+  panel.style.display='none';
+  panel.setAttribute('aria-hidden','true');
+  clearSelection();
+// Starting a search clears the current selection highlight & closes info box
+  if(q) clearSelection('search');
   // clear suggestions if empty
   while(suggestions.firstChild) suggestions.removeChild(suggestions.firstChild);
   if(!q){ render(); suggestions.style.display = 'none'; return; }
@@ -373,21 +612,8 @@ search.addEventListener('input', (e)=>{
     el.textContent = `${it.name} ${it.dates?(' — '+it.dates):''}`;
 
     // Highlight tomb on hover and restore on leave
-    el.addEventListener('mouseenter', () => {
-      // make this highlight exclusive to this suggestion
-      clearSearchHighlights();
-      const node = map.querySelector(`[data-id="${it.id}"]`);
-      if(node){
-        const stone = node.querySelector('.stone');
-        stone?.classList.add('search-highlight');
-        // bring tomb group to front so highlight is visible
-        map.appendChild(node);
-      }
-    });
-    el.addEventListener('mouseleave', () => {
-      // remove any temporary search highlight when leaving suggestion
-      clearSearchHighlights();
-    });
+    el.addEventListener('mouseenter', () => { setSearchHover(it.id); });
+    el.addEventListener('mouseleave', () => { setSearchHover(null); });
 
     el.addEventListener('click', () => {
       search.value = it.name;
@@ -439,24 +665,16 @@ function saveAndRefresh(){
 
 function escapeHtml(s=''){ return (''+s).replace(/[&<>\"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;' }[c])) }
 
-// add helper to toggle persistent highlight
-function highlightItem(id, on){
-  const node = map.querySelector(`[data-id="${id}"]`);
-  if(!node) return;
-  const stone = node.querySelector('.stone');
-  if(on){
-    stone?.classList.add('search-highlight');
-    // bring group forward
-    map.appendChild(node);
-  }else{
-    stone?.classList.remove('search-highlight');
-  }
-}
-
 // clear all transient search highlights from the map (keeps persistent selection highlights handled elsewhere)
 function clearSearchHighlights(){
-  const stones = map.querySelectorAll('.stone.search-highlight');
-  stones.forEach(s => s.classList.remove('search-highlight'));
+  // Remove only "search" highlights; keep selected/hover highlights.
+  const nodes = map.querySelectorAll('.tomb[data-search="1"]');
+  nodes.forEach(n => {
+    delete n.dataset.search;
+    const stone = n.querySelector('.stone');
+    const anyOn = n.dataset.selected || n.dataset.hover;
+    if(!anyOn) stone?.classList.remove('search-highlight');
+  });
 }
 
 // --- Modal behavior for small screens ---
@@ -482,7 +700,7 @@ function openModalForSmall(node){
       <button id="mobileClose" style="float:right;border:none;background:transparent;font-size:18px">✕</button>
       <div id="mobileDetail">${detail.innerHTML}</div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button id="mobileLike">👍 ${(state.selected?.likes||0)}</button>
+        <button id="mobileLike">❤ ${(state.selected?.likes||0)}</button>
         ${mobileEditHtml}
       </div>
     </div>
@@ -491,7 +709,7 @@ function openModalForSmall(node){
   document.getElementById('mobileClose').addEventListener('click', closeModalSmall);
   document.getElementById('mobileLike').addEventListener('click', ()=>{
     likeBtn.click();
-    document.getElementById('mobileLike').textContent = `👍 ${(state.selected?.likes||0)}`;
+    document.getElementById('mobileLike').textContent = `❤ ${(state.selected?.likes||0)}`;
   });
 
   if(isAdmin){
@@ -511,7 +729,7 @@ function closeModalSmall(){
   const m = document.getElementById('mobileModal');
   if(m) m.remove();
   // remove persistent highlight when closing mobile modal
-  if(state.selected && state.selected.id) highlightItem(state.selected.id, false);
+  if(state.selected && state.selected.id) setHighlight(state.selected.id, 'selected', false);
 }
 
 // initial render

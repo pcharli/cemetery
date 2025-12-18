@@ -5,31 +5,40 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
   <title>Cimetière virtuel</title>
   <link rel="stylesheet" href="style.css">
-  <script type="importmap">
-  {
-    "imports": {}
-  }
-  </script>
 </head>
 <body>
   <div id="app">
     <header>
-      <input id="search" placeholder="Rechercher un nom..." aria-label="Recherche"/>
-      <div id="suggestions" role="listbox" aria-label="Résultats de recherche"></div>
+      <h1 id="title">Morts pour l'économie libérale</h1>
+
+      <div class="searchWrap">
+        <input id="search" placeholder="Rechercher un nom..." aria-label="Recherche"/>
+        <div id="suggestions" role="listbox" aria-label="Résultats de recherche"></div>
+      </div>
+
+      <label class="zoomWrap" title="Zoom">
+        <span class="zoomIcon" aria-hidden="true">🔍</span>
+        <input id="zoom" type="range" min="80" max="220" step="5" value="100" />
+      </label>
+
+      <button id="recenterBtn" title="Recentrer la vue"><svg class="icon-target" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       <button id="newBtn" title="Ajouter une tombe">＋</button>
       <div id="count" aria-live="polite">0 tombes</div>
     </header>
 
     <main>
       <div id="canvasWrap">
-        <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="world">
+          <div id="alleys" aria-hidden="true"></div>
+          <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMinYMin meet"></svg>
+        </div>
       </div>
 
       <aside id="panel" aria-hidden="true">
         <button id="closePanel" aria-label="Fermer">✕</button>
         <div id="detail"></div>
         <div id="actions">
-          <button id="likeBtn">👍 <span id="likesCount">0</span></button>
+          <button id="likeBtn">❤ <span id="likesCount">0</span></button>
           <button id="editBtn">Éditer</button>
           <button id="deleteBtn">Supprimer</button>
         </div>
@@ -55,11 +64,11 @@
     </main>
 
     <footer>
-      <small>Les données sont stockées localement dans votre navigateur.</small>
+      <img src="CSC_logo.svg" alt="CSC Belgique" class="footer-logo" />
+      <span>CSC - 2025</span>
     </footer>
   </div>
 
   <script type="module" src="app.js"></script>
 </body>
 </html>
-
