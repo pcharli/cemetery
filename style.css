@@ -1,0 +1,114 @@
+:root{
+  --bg:#f6f5f2;
+  --panel:#fff;
+  --muted:#666;
+  --accent:#8b5e3c;
+  --stone:#d9d9d9;
+  --shadow: rgba(0,0,0,0.08);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+*{box-sizing:border-box}
+html,body,#app{height:100%;margin:0;background:var(--bg);color:#222}
+header{
+  display:flex;gap:8px;padding:10px;background:transparent;align-items:center;
+}
+#search{
+  flex:1;padding:10px;border-radius:8px;border:1px solid #e2dfda;font-size:16px;
+}
+#newBtn{
+  width:44px;height:44px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:20px;
+}
+#count{
+  min-width:110px;padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #eae6df;color:var(--muted);font-size:14px;text-align:center;
+}
+
+#suggestions{
+  position: absolute;
+  margin-top:54px; /* aligns under header input area */
+  left:12px;
+  right:140px;
+  display:none;
+  background: #fff;
+  border:1px solid #eae6df;
+  border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.08);
+  max-height:260px;
+  overflow:auto;
+  z-index:50;
+}
+.suggestion{
+  display:block;
+  width:100%;
+  text-align:left;
+  padding:10px;
+  border:0;
+  background:transparent;
+  font-size:14px;
+  cursor:pointer;
+}
+.suggestion:hover{ background:#f6f5f2 }
+
+main{display:flex;height:calc(100% - 112px);gap:12px;padding:0 12px 12px}
+#canvasWrap{flex:1;background:linear-gradient(#eef0ec, #f6f5f2);border-radius:12px;box-shadow:0 6px 18px var(--shadow);padding:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#map{width:100%;height:100%;max-height:100%;border-radius:8px}
+
+aside#panel{
+  width:320px;background:var(--panel);border-radius:12px;padding:12px;box-shadow:0 6px 20px var(--shadow);position:relative;
+  display:flex;flex-direction:column;gap:10px
+}
+#closePanel{position:absolute;right:10px;top:10px;border:none;background:transparent;font-size:18px}
+#detail h3{margin:6px 0 2px}
+#detail p{margin:6px 0;color:var(--muted)}
+#actions{display:flex;gap:8px}
+#actions button{flex:1;padding:10px;border-radius:8px;border:1px solid #e2dfda;background:#fff}
+#editForm label{display:block;font-size:13px;color:var(--muted);margin-top:8px}
+#editForm input,#editForm textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #e8e5de;background:#fff;margin-top:6px}
+.formActions{display:flex;gap:8px;margin-top:10px}
+.formActions button{flex:1;padding:9px;border-radius:8px;border:none}
+footer{padding:8px;text-align:center;color:var(--muted);font-size:13px}
+
+.tomb{
+  cursor:pointer;
+  transition:transform .12s;
+}
+/* Remove SVG hover transform (caused position jitter by conflicting with SVG transform attribute)
+.tomb:hover{transform:translateY(-6px)}
+*/
+.stone{fill:var(--stone);stroke:#bfbfbf;stroke-width:2}
+.plate{fill:#524c48;color:#fff;font-size:14px;font-weight:600}
+.pathLine{fill:none;stroke:#cfc9be;stroke-width:8;stroke-linecap:round;stroke-linejoin:round}
+.search-highlight{stroke:#ffb74d;stroke-width:4}
+.like-burst{fill:#ffb74d;opacity:0.9}
+small.hint{display:block;color:var(--muted);font-size:12px;margin-top:6px}
+@media (max-width:640px){
+  aside#panel{display:none}
+  main{padding:0 8px 12px}
+  #canvasWrap{border-radius:10px;padding:6px}
+  #suggestions{ left:12px; right:88px; margin-top:58px; }
+  /* Make the add button a clear floating action button on small screens
+     so it no longer overlaps the search input in the header */
+  #newBtn{
+    position:fixed;
+    right:16px;
+    bottom:84px; /* above footer/other chrome */
+    width:56px;
+    height:56px;
+    border-radius:50%;
+    box-shadow:0 8px 20px rgba(0,0,0,0.18);
+    font-size:26px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:40;
+  }
+
+  /* ensure header has room and doesn't get visually crowded */
+  header{
+    padding-right:16px;
+  }
+
+  /* reduce header button in-flow so header layout doesn't shift */
+  header #newBtn{ position:static; width:44px; height:44px; border-radius:8px; box-shadow:none; font-size:20px; display:none; }
+}
+

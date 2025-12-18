@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+  <title>Cimetière virtuel</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+  {
+    "imports": {}
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <input id="search" placeholder="Rechercher un nom..." aria-label="Recherche"/>
+      <div id="suggestions" role="listbox" aria-label="Résultats de recherche"></div>
+      <button id="newBtn" title="Ajouter une tombe">＋</button>
+      <div id="count" aria-live="polite">0 tombes</div>
+    </header>
+
+    <main>
+      <div id="canvasWrap">
+        <svg id="map" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+
+      <aside id="panel" aria-hidden="true">
+        <button id="closePanel" aria-label="Fermer">✕</button>
+        <div id="detail"></div>
+        <div id="actions">
+          <button id="likeBtn">👍 <span id="likesCount">0</span></button>
+          <button id="editBtn">Éditer</button>
+          <button id="deleteBtn">Supprimer</button>
+        </div>
+        <form id="editForm" hidden>
+          <label>
+            Nom
+            <input name="name" required />
+          </label>
+          <label>
+            Dates / Bref
+            <input name="dates" />
+          </label>
+          <label>
+            Récit (ce qui leur est arrivé)
+            <textarea name="story"></textarea>
+          </label>
+          <div class="formActions">
+            <button type="submit">Enregistrer</button>
+            <button type="button" id="cancelEdit">Annuler</button>
+          </div>
+        </form>
+      </aside>
+    </main>
+
+    <footer>
+      <small>Les données sont stockées localement dans votre navigateur.</small>
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
+
