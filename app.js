@@ -115,8 +115,8 @@ function updateZoomBounds(){
 
   // Compute a minimum zoom so that the full alley WIDTH fits on screen (no horizontal swipe needed)
   // i.e. state.layoutW * scale <= canvasWrap.clientWidth
-  const fitScale = canvasWrap.clientWidth / state.layoutW;
-  const fitPercent = Math.max(50, Math.min(200, Math.ceil(fitScale * 100)));
+  const fitScale = (canvasWrap.clientWidth / state.layoutW) * 0.92; // small margin so the alley is fully visible
+  const fitPercent = Math.max(25, Math.ceil(fitScale * 100));
 
   // On mobile we enforce the fitPercent as the slider minimum
   const isMobile = window.matchMedia('(max-width: 640px)').matches;
