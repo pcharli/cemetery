@@ -109,6 +109,33 @@ function applyZoom(){
   world.style.transformOrigin = '0 0';
   world.style.transform = `scale(${s})`;
 }
+
+function updateZoomBounds(){
+  if(!zoom || !canvasWrap) return;
+
+  // Compute a minimum zoom so that the full alley WIDTH fits on screen (no horizontal swipe needed)
+  // i.e. state.layoutW * scale <= canvasWrap.clientWidth
+  const fitScale = canvasWrap.clientWidth / state.layoutW;
+  const fitPercent = Math.max(50, Math.min(200, Math.ceil(fitScale * 100)));
+
+  // On mobile we enforce the fitPercent as the slider minimum
+  const isMobile = window.matchMedia('(max-width: 640px)').matches;
+  if(isMobile){
+    zoom.min = String(fitPercent);
+  }else{
+    // keep desktop comfort min
+    zoom.min = '80';
+  }
+
+  // If current zoom is below min, bump it up
+  const current = Number(zoom.value || 100);
+  const minV = Number(zoom.min || 50);
+  if(current < minV){
+    zoom.value = String(minV);
+    localStorage.setItem(ZOOM_KEY, String(minV));
+    applyZoom();
+  }
+}
 if(zoom){
   zoom.value = String(getZoomPercent());
   zoom.addEventListener('input', ()=>{
@@ -544,6 +571,10 @@ function escapeHtml(s=''){
   return (''+s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+window.addEventListener('resize', ()=>{ render(); applyZoom(); updateZoomBounds(); });
+window.addEventListener('orientationchange', ()=>{ setTimeout(()=>{ render(); applyZoom(); updateZoomBounds(); }, 50); });
+
 // Initial render
 render();
 applyZoom();
+updateZoomBounds();
